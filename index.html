@@ -256,10 +256,19 @@ main{position:relative;z-index:1;max-width:1160px;margin:0 auto;padding:0 1.5rem
       <span id="cpill-dot" style="width:6px;height:6px;border-radius:50%;background:var(--red)"></span>
       <span id="cpill-label">No Contract</span>
     </div>
-    <button class="wbtn" id="wbtn" onclick="connectWallet()">
-      <div id="wdot"></div>
-      <span id="wlabel">Connect Wallet</span>
-    </button>
+    <div style="position:relative;" id="wallet-wrap">
+      <button class="wbtn" id="wbtn" onclick="walletBtnClick()">
+        <div id="wdot"></div>
+        <span id="wlabel">Connect Wallet</span>
+      </button>
+      <!-- Dropdown (shown when connected) -->
+      <div id="wallet-menu" style="display:none;position:absolute;right:0;top:calc(100% + 8px);background:#1a1a2e;border:1px solid rgba(255,255,255,0.1);border-radius:10px;min-width:200px;z-index:999;box-shadow:0 8px 32px rgba(0,0,0,0.4);overflow:hidden;">
+        <div id="wm-addr" style="padding:10px 14px;font-size:11px;color:#888;border-bottom:1px solid rgba(255,255,255,0.07);word-break:break-all;"></div>
+        <button onclick="copyWalletAddr()" style="width:100%;padding:10px 14px;background:none;border:none;color:#ccc;text-align:left;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:8px;">📋 Copy Address</button>
+        <button onclick="switchWallet()" style="width:100%;padding:10px 14px;background:none;border:none;color:#ccc;text-align:left;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:8px;">🔄 Switch Account</button>
+        <button onclick="disconnectWallet()" style="width:100%;padding:10px 14px;background:none;border:none;color:#f87171;text-align:left;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:8px;border-top:1px solid rgba(255,255,255,0.07);">🔌 Disconnect</button>
+      </div>
+    </div>
   </div>
 </nav>
 
@@ -375,7 +384,7 @@ const USDC_ABI = [
 // ─── ArcMarket contract ─────────────────────────────────
 // ⚠️  PASTE YOUR DEPLOYED CONTRACT ADDRESS HERE after deployment
 // Example: '0xYourContractAddressHere'
-let MARKET_ADDR = '0xea3a87a497aB6e01112157b2D9E23e410B1106Bc';
+let MARKET_ADDR = localStorage.getItem('arcmarket_contract') || '';
 
 const MARKET_ABI = [
   // Listings
@@ -534,6 +543,52 @@ function setWalletUI(addr){
   document.getElementById('wlabel').textContent=s;
   document.getElementById('wdot').classList.add('on');
   document.getElementById('wbtn').classList.add('on');
+  document.getElementById('wm-addr').textContent=addr;
+}
+
+function walletBtnClick(){
+  if(!walletAddress){ connectWallet(); return; }
+  const menu=document.getElementById('wallet-menu');
+  menu.style.display = menu.style.display==='none' ? 'block' : 'none';
+}
+
+document.addEventListener('click', function(e){
+  const wrap=document.getElementById('wallet-wrap');
+  if(wrap && !wrap.contains(e.target)){
+    document.getElementById('wallet-menu').style.display='none';
+  }
+});
+
+function copyWalletAddr(){
+  navigator.clipboard.writeText(walletAddress).then(()=>{ toast('📋 Address copied!','ok'); });
+  document.getElementById('wallet-menu').style.display='none';
+}
+
+async function switchWallet(){
+  document.getElementById('wallet-menu').style.display='none';
+  try{
+    await window.ethereum.request({method:'wallet_requestPermissions',params:[{eth_accounts:{}}]});
+    const accounts=await window.ethereum.request({method:'eth_accounts'});
+    if(accounts.length){
+      walletAddress=accounts[0];
+      signer=await provider.getSigner();
+      initContracts(signer);
+      setWalletUI(walletAddress);
+      document.getElementById('f-wallet').value=walletAddress;
+      toast('🔄 Switched to '+walletAddress.slice(0,6)+'...'+walletAddress.slice(-4),'ok');
+    }
+  }catch(e){ toast('❌ Switch cancelled','err'); }
+}
+
+function disconnectWallet(){
+  document.getElementById('wallet-menu').style.display='none';
+  walletAddress=null; provider=null; signer=null;
+  marketContract=null; usdcContract=null;
+  document.getElementById('wlabel').textContent='Connect Wallet';
+  document.getElementById('wdot').classList.remove('on');
+  document.getElementById('wbtn').classList.remove('on');
+  document.getElementById('f-wallet').value='';
+  toast('🔌 Wallet disconnected','ok');
 }
 
 /* ── BUY ──────────────────────────────────────────────── */
