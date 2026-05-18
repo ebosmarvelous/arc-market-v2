@@ -337,7 +337,21 @@ main{position:relative;z-index:1;max-width:1160px;margin:0 auto;padding:0 1.5rem
 
 <!-- ORDERS -->
 <div id="tab-orders" class="hidden">
-  <div class="ow"><h2>My Orders</h2><div id="olist"></div></div>
+  <div class="ow">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h2 style="margin:0;">My Orders</h2>
+      <button class="buy-btn" style="font-size:12px;padding:6px 14px;" onclick="refreshOrders()">🔄 Refresh</button>
+    </div>
+    <div id="olist"></div>
+
+    <div style="margin-top:32px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <h3 style="margin:0;font-size:1rem;color:var(--muted);">📦 Orders on My Listings</h3>
+        <button class="buy-btn" style="font-size:12px;padding:6px 14px;" onclick="loadSellerOrders()">🔄 Refresh</button>
+      </div>
+      <div id="seller-dash"><div class="empty" style="font-size:12px;padding:12px;">Connect wallet to see orders on your listings.</div></div>
+    </div>
+  </div>
 </div>
 
 </main>
@@ -531,7 +545,11 @@ async function connectWallet(){
     initContracts(signer);
     setWalletUI(walletAddress);
     document.getElementById('f-wallet').value=walletAddress;
-    if(marketContract) await loadChainListings();
+    if(marketContract){
+      await loadChainListings();
+      await loadChainOrders();
+      await loadSellerOrders();
+    }
     toast('✅ Connected on ARC Testnet','ok');
   }catch(e){
     toast('❌ '+(e.message||'Connection failed'),'err');
@@ -643,20 +661,163 @@ async function buyItem(l){
 }
 
 /* ── ORDERS ───────────────────────────────────────────── */
-function renderOrders(){
-  const el=document.getElementById('olist');
-  if(!myOrders.length){el.innerHTML='<div class="empty">No orders yet. Browse listings to buy a service.</div>';return;}
-  el.innerHTML=myOrders.map(o=>`
-    <div class="oc">
+/* ── ORDER STATUS LABELS ──────────────────────────────── */
+const ORDER_STATUS = ['Pending','Delivered','Released','Disputed','Refunded'];
+const ORDER_CSS    = ['escrowed','delivered','released','disputed','refunded'];
+const ORDER_LABEL  = ['In Escrow','Delivered','Released','Disputed','Refunded'];
+
+/* ── LOAD ORDERS FROM CHAIN ───────────────────────────── */
+async function loadChainOrders(){
+  if(!marketContract || !walletAddress) return;
+  try{
+    const ids = await marketContract.getBuyerOrders(walletAddress);
+    if(!ids.length){ renderOrders(); return; }
+    const fetched = await Promise.all(ids.map(id => marketContract.orders(id)));
+    myOrders = fetched.map(o => ({
+      id:        Number(o.id),
+      listingId: Number(o.listingId),
+      buyer:     o.buyer,
+      seller:    o.seller,
+      amount:    (Number(o.amount) / 1e6).toFixed(2),
+      fee:       (Number(o.fee)    / 1e6).toFixed(2),
+      createdAt: Number(o.createdAt),
+      statusIdx: Number(o.status),
+      // display fields (filled below)
+      title:     'Order #'+Number(o.id),
+      emoji:     '📦',
+      price:     (Number(o.amount) / 1e6).toFixed(2)+' USDC',
+      status:    ORDER_CSS[Number(o.status)],
+      hash:      null,
+      onChain:   true,
+    }));
+    // Try to enrich titles from listing data
+    await Promise.all(myOrders.map(async o => {
+      try{
+        const l = await marketContract.listings(o.listingId);
+        o.title = l.title || o.title;
+        o.emoji = l.emoji || o.emoji;
+        o.sellerShort = o.seller.slice(0,6)+'...'+o.seller.slice(-4);
+      }catch(e){}
+    }));
+    document.getElementById('sv-ord').textContent = myOrders.length;
+    renderOrders();
+  }catch(e){ console.warn('loadChainOrders',e); renderOrders(); }
+}
+
+/* ── ALSO LOAD SELLER ORDERS ──────────────────────────── */
+async function loadSellerOrders(){
+  if(!marketContract || !walletAddress) return;
+  try{
+    const sellerIds = await marketContract.getSellerListings(walletAddress);
+    sellerDashboard = [];
+    for(const lid of sellerIds){
+      // find orders for this listing by scanning all orders via events
+      // lightweight: just show pending orders via getBuyerOrders on all known buyers
+      // We use OrderPlaced events filtered by listing
+      try{
+        const filter = marketContract.filters.OrderPlaced(null, lid);
+        const events = await marketContract.queryFilter(filter, -10000);
+        for(const ev of events){
+          const orderId = Number(ev.args.orderId);
+          const o = await marketContract.orders(orderId);
+          if(Number(o.status) === 0 || Number(o.status) === 1){ // Pending or Delivered
+            const l = await marketContract.listings(lid);
+            sellerDashboard.push({
+              orderId,
+              listingTitle: l.title,
+              emoji: l.emoji,
+              buyer: o.buyer.slice(0,6)+'...'+o.buyer.slice(-4),
+              amount: (Number(o.amount)/1e6).toFixed(2),
+              statusIdx: Number(o.status),
+            });
+          }
+        }
+      }catch(e){}
+    }
+    renderSellerDashboard();
+  }catch(e){ console.warn('loadSellerOrders',e); }
+}
+
+let sellerDashboard = [];
+
+function renderSellerDashboard(){
+  const el = document.getElementById('seller-dash');
+  if(!el) return;
+  if(!sellerDashboard.length){
+    el.innerHTML='<div class="empty" style="font-size:12px;padding:12px;">No pending orders on your listings yet.</div>';
+    return;
+  }
+  el.innerHTML = sellerDashboard.map(o=>`
+    <div class="oc" style="font-size:13px;">
       <div class="oem">${o.emoji}</div>
       <div class="oi">
-        <div class="ot">${o.title}</div>
-        <div class="os2">${o.seller}</div>
-        ${o.hash?`<div class="otx"><a href="${ARC_EXPLORER}/tx/${o.hash}" target="_blank">View on ArcScan ↗</a></div>`:''}
+        <div class="ot">${o.listingTitle}</div>
+        <div class="os2">Buyer: ${o.buyer} · ${o.amount} USDC</div>
       </div>
       <div class="or">
-        <div class="oprice">${o.price}</div>
-        <span class="ost ${o.status}">${o.status==='escrowed'?'In Escrow':o.status==='delivered'?'Delivered':'Pending'}</span>
+        <span class="ost ${ORDER_CSS[o.statusIdx]}">${ORDER_LABEL[o.statusIdx]}</span>
+        ${o.statusIdx===0?`<button class="buy-btn" style="margin-top:6px;font-size:11px;padding:4px 10px;" onclick="markDelivered(${o.orderId})">Mark Delivered</button>`:''}
+      </div>
+    </div>`).join('');
+}
+
+async function markDelivered(orderId){
+  if(!marketContract){toast('No contract connected','err');return;}
+  try{
+    toast('⏳ Marking as delivered…','ok');
+    const tx = await marketContract.markDelivered(orderId);
+    await tx.wait();
+    toast('✅ Order marked delivered!','ok');
+    await loadSellerOrders();
+  }catch(e){ toast('❌ '+(e.reason||e.message),'err'); }
+}
+
+async function releasePayment(orderId){
+  if(!marketContract){toast('No contract connected','err');return;}
+  try{
+    toast('⏳ Releasing payment…','ok');
+    const tx = await marketContract.releasePayment(orderId);
+    await tx.wait();
+    toast('✅ Payment released to seller!','ok');
+    await loadChainOrders();
+  }catch(e){ toast('❌ '+(e.reason||e.message),'err'); }
+}
+
+async function raiseDispute(orderId){
+  if(!marketContract){toast('No contract connected','err');return;}
+  if(!confirm('Raise a dispute for this order? You have 7 days from purchase.')) return;
+  try{
+    toast('⏳ Raising dispute…','ok');
+    const tx = await marketContract.raiseDispute(orderId);
+    await tx.wait();
+    toast('⚠️ Dispute raised! Admin will review.','ok');
+    await loadChainOrders();
+  }catch(e){ toast('❌ '+(e.reason||e.message),'err'); }
+}
+
+/* ── RENDER ORDERS ────────────────────────────────────── */
+function renderOrders(){
+  const el=document.getElementById('olist');
+  if(!myOrders.length){
+    el.innerHTML='<div class="empty">No orders yet. Browse listings to buy a service.</div>';
+    return;
+  }
+  el.innerHTML = myOrders.map(o=>`
+    <div class="oc">
+      <div class="oem">${o.emoji||'📦'}</div>
+      <div class="oi">
+        <div class="ot">${o.title}</div>
+        <div class="os2">Seller: ${o.sellerShort||o.seller||''}</div>
+        ${o.hash?`<div class="otx"><a href="${ARC_EXPLORER}/tx/${o.hash}" target="_blank">View on ArcScan ↗</a></div>`:''}
+        ${o.onChain&&o.id?`<div class="otx"><a href="${ARC_EXPLORER}" target="_blank" style="color:#888;">Order #${o.id}</a></div>`:''}
+      </div>
+      <div class="or">
+        <div class="oprice">${o.price||o.amount+' USDC'}</div>
+        <span class="ost ${ORDER_CSS[o.statusIdx]||o.status}">${ORDER_LABEL[o.statusIdx]||'Pending'}</span>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-top:6px;">
+          ${o.statusIdx===1?`<button class="buy-btn" style="font-size:11px;padding:4px 10px;background:rgba(0,200,100,.15);border-color:rgba(0,200,100,.3);color:#4ade80;" onclick="releasePayment(${o.id})">✅ Release Payment</button>`:''}
+          ${o.statusIdx===0||o.statusIdx===1?`<button class="buy-btn" style="font-size:11px;padding:4px 10px;background:rgba(255,100,100,.1);border-color:rgba(255,100,100,.3);color:#f87171;" onclick="raiseDispute(${o.id})">⚠️ Dispute</button>`:''}
+        </div>
       </div>
     </div>`).join('');
 }
@@ -710,7 +871,10 @@ function switchTab(name,btn){
   document.querySelectorAll('.ntab').forEach(b=>b.classList.remove('active'));
   if(btn)btn.classList.add('active');
   else document.querySelectorAll('.ntab')[['browse','sell','orders'].indexOf(name)].classList.add('active');
-  if(name==='orders')renderOrders();
+  if(name==='orders'){
+    renderOrders();
+    if(walletAddress && marketContract){ loadChainOrders(); loadSellerOrders(); }
+  }
 }
 
 /* ── TOAST ────────────────────────────────────────────── */
@@ -725,6 +889,14 @@ function toast(msg,type='ok'){
 renderGrid(LISTINGS);
 renderOrders();
 
+async function refreshOrders(){
+  if(!walletAddress){toast('⚠️ Connect wallet first','err');return;}
+  toast('🔄 Loading orders from chain…','ok');
+  await loadChainOrders();
+  await loadSellerOrders();
+  toast('✅ Orders refreshed','ok');
+}
+
 if(window.ethereum){
   window.ethereum.request({method:'eth_accounts'}).then(async accounts=>{
     if(accounts.length){
@@ -734,7 +906,11 @@ if(window.ethereum){
       initContracts(signer);
       setWalletUI(walletAddress);
       document.getElementById('f-wallet').value=walletAddress;
-      if(marketContract) loadChainListings();
+      if(marketContract){
+        loadChainListings();
+        loadChainOrders();
+        loadSellerOrders();
+      }
     }
   });
   window.ethereum.on('accountsChanged',a=>{if(!a.length)location.reload();else{walletAddress=a[0];setWalletUI(a[0]);}});
