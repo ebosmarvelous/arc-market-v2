@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>ArcMarket — Decentralized AI Marketplace on ARC</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Familjen+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+<style>
+:root{
+  --bg:#05070d;--s1:#0b0f1a;--s2:#111827;--s3:#1a2236;
+  --border:#1f2d45;--border2:#2a3f60;
+  --accent:#00c2ff;--accent-dim:rgba(0,194,255,.12);
+  --green:#00e887;--green-dim:rgba(0,232,135,.1);
+  --red:#ff4060;--red-dim:rgba(255,64,96,.1);
+  --yellow:#f5c518;
+  --text:#dce8f5;--muted:#5b7090;--muted2:#8ba4c0;
+  --usdc:#2775ca;
+  --font:'Familjen Grotesk',sans-serif;--mono:'DM Mono',monospace;
+  --r:14px;--rs:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow-x:hidden;}
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:radial-gradient(ellipse 55% 35% at 80% 5%,rgba(0,194,255,.055) 0%,transparent 60%),
+             radial-gradient(ellipse 40% 25% at 5% 90%,rgba(0,232,135,.045) 0%,transparent 60%);
+}
+
+/* NAV */
+nav{
+  position:sticky;top:0;z-index:100;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 2rem;height:58px;
+  background:rgba(5,7,13,.9);backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
+}
+.logo{display:flex;align-items:center;gap:.5rem;cursor:pointer;}
+.logo-mark{
+  width:30px;height:30px;border-radius:7px;
+  background:linear-gradient(135deg,var(--accent),#0066ff);
+  display:flex;align-items:center;justify-content:center;
+  font-size:.78rem;font-weight:700;color:#fff;
+}
+.logo-name{font-size:.98rem;font-weight:700;letter-spacing:-.4px;}
+.logo-name span{color:var(--accent);}
+.nav-tabs{display:flex;gap:2px;}
+.ntab{
+  background:none;border:none;color:var(--muted);
+  font-family:var(--font);font-size:.84rem;font-weight:600;
+  padding:.38rem .85rem;border-radius:var(--rs);cursor:pointer;transition:color .15s,background .15s;
+}
+.ntab:hover{color:var(--text);}
+.ntab.active{color:var(--accent);background:var(--accent-dim);}
+.nav-right{display:flex;align-items:center;gap:.55rem;}
+.chain-pill{
+  display:flex;align-items:center;gap:.4rem;
+  background:var(--s2);border:1px solid var(--border);
+  padding:.28rem .65rem;border-radius:20px;font-family:var(--mono);font-size:.68rem;color:var(--muted2);
+}
+.gpulse{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s ease infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+.wbtn{
+  display:flex;align-items:center;gap:.4rem;
+  background:var(--s2);border:1px solid var(--border2);color:var(--text);
+  font-family:var(--font);font-weight:600;font-size:.8rem;
+  padding:.35rem .85rem;border-radius:var(--rs);cursor:pointer;transition:border-color .18s,background .18s;
+}
+.wbtn:hover{border-color:var(--accent);background:var(--accent-dim);}
+.wbtn.on{border-color:rgba(0,232,135,.4);color:var(--green);}
+#wdot{width:7px;height:7px;border-radius:50%;background:var(--red);}
+#wdot.on{background:var(--green);}
+
+/* MAIN */
+main{position:relative;z-index:1;max-width:1160px;margin:0 auto;padding:0 1.5rem 5rem;}
+
+/* HERO */
+.hero{padding:3.5rem 0 2.5rem;display:grid;grid-template-columns:1fr 195px;gap:2rem;align-items:start;}
+.eyebrow{
+  display:inline-flex;align-items:center;gap:.45rem;
+  background:var(--s2);border:1px solid var(--border2);
+  color:var(--muted2);font-size:.68rem;font-weight:600;letter-spacing:.8px;text-transform:uppercase;
+  padding:.28rem .7rem;border-radius:20px;margin-bottom:1rem;
+}
+.hero h1{font-size:clamp(2rem,4.5vw,3.3rem);font-weight:700;line-height:1.07;letter-spacing:-1.5px;margin-bottom:.85rem;}
+.hero h1 em{font-style:italic;color:var(--accent);}
+.hero p{color:var(--muted2);font-size:.92rem;line-height:1.65;max-width:490px;margin-bottom:1.5rem;}
+.hctas{display:flex;gap:.65rem;flex-wrap:wrap;}
+.btn-p{
+  background:var(--accent);color:#000;font-family:var(--font);font-weight:700;
+  font-size:.86rem;padding:.55rem 1.25rem;border:none;border-radius:var(--rs);
+  cursor:pointer;transition:opacity .18s,transform .15s;
+}
+.btn-p:hover{opacity:.85;transform:translateY(-1px);}
+.btn-g{
+  background:transparent;color:var(--text);font-family:var(--font);font-weight:600;
+  font-size:.86rem;padding:.55rem 1.25rem;border:1px solid var(--border2);
+  border-radius:var(--rs);cursor:pointer;transition:border-color .18s,background .18s;
+}
+.btn-g:hover{border-color:var(--accent);background:var(--accent-dim);}
+.stats-col{display:flex;flex-direction:column;gap:.55rem;}
+.sc{background:var(--s1);border:1px solid var(--border);border-radius:var(--r);padding:.85rem 1rem;}
+.sc-l{font-size:.62rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);}
+.sc-v{font-size:1.75rem;font-weight:700;color:var(--accent);font-family:var(--mono);margin-top:.1rem;}
+
+/* FILTER */
+.frow{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1.4rem;flex-wrap:wrap;}
+.chips{display:flex;gap:.35rem;flex-wrap:wrap;}
+.chip{
+  background:var(--s1);border:1px solid var(--border);color:var(--muted2);
+  font-family:var(--font);font-size:.72rem;font-weight:600;
+  padding:.3rem .75rem;border-radius:20px;cursor:pointer;transition:all .16s;
+}
+.chip:hover,.chip.active{border-color:var(--accent);color:var(--accent);background:var(--accent-dim);}
+.cnt{font-size:.75rem;color:var(--muted);font-family:var(--mono);}
+
+/* GRID */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(305px,1fr));gap:1rem;}
+.card{
+  background:var(--s1);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;cursor:pointer;display:flex;flex-direction:column;
+  transition:border-color .2s,transform .18s,box-shadow .2s;
+}
+.card:hover{border-color:var(--accent);transform:translateY(-3px);box-shadow:0 12px 36px rgba(0,194,255,.09);}
+.cthumb{
+  height:128px;background:var(--s2);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;font-size:2.7rem;position:relative;
+}
+.cthumb-bg{position:absolute;inset:0;background:radial-gradient(circle at 50% 60%,var(--tc,rgba(0,194,255,.07)) 0%,transparent 70%);}
+.badge{
+  position:absolute;top:.6rem;right:.6rem;
+  font-size:.58rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;
+  padding:.2rem .5rem;border-radius:20px;
+}
+.b-active{background:var(--green-dim);color:var(--green);border:1px solid rgba(0,232,135,.25);}
+.b-sold{background:var(--red-dim);color:var(--red);border:1px solid rgba(255,64,96,.25);}
+.b-new{background:var(--accent-dim);color:var(--accent);border:1px solid rgba(0,194,255,.25);}
+.cbody{padding:.95rem 1.05rem 1.05rem;flex:1;display:flex;flex-direction:column;}
+.ccat{font-size:.6rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);margin-bottom:.32rem;}
+.ctitle{font-size:.95rem;font-weight:700;margin-bottom:.38rem;line-height:1.25;}
+.cdesc{font-size:.75rem;color:var(--muted2);line-height:1.55;flex:1;margin-bottom:.8rem;}
+.cfoot{display:flex;align-items:center;justify-content:space-between;}
+.pw{display:flex;align-items:center;gap:.38rem;}
+.utag{background:var(--usdc);color:#fff;font-family:var(--mono);font-size:.6rem;font-weight:500;padding:.13rem .38rem;border-radius:4px;}
+.pnum{font-family:var(--mono);font-size:.92rem;font-weight:500;}
+.cqty{font-size:.68rem;color:var(--muted);font-family:var(--mono);}
+.cseller{font-size:.65rem;color:var(--muted);font-family:var(--mono);margin-top:.5rem;}
+
+/* MODAL */
+.ov{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.74);backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:1rem;}
+.ov.open{display:flex;}
+.modal{
+  background:var(--s1);border:1px solid var(--border2);border-radius:20px;
+  padding:1.7rem;max-width:430px;width:100%;position:relative;
+  animation:mIn .22s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes mIn{from{opacity:0;transform:scale(.95)translateY(10px);}to{opacity:1;transform:none;}}
+.mx{
+  position:absolute;top:.9rem;right:.9rem;
+  background:var(--s2);border:1px solid var(--border);color:var(--muted);
+  width:27px;height:27px;border-radius:6px;cursor:pointer;font-size:.85rem;
+  display:flex;align-items:center;justify-content:center;
+}
+.mx:hover{color:var(--text);}
+.mem{font-size:2.7rem;margin-bottom:.85rem;}
+.mcat{font-size:.6rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);margin-bottom:.28rem;}
+.mtitle{font-size:1.25rem;font-weight:700;margin-bottom:.5rem;}
+.mdesc{color:var(--muted2);font-size:.84rem;line-height:1.6;margin-bottom:1.1rem;}
+.mrow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.65rem;margin-bottom:1.3rem;}
+.mi{background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:.6rem .8rem;}
+.mil{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:.25rem;}
+.miv{font-family:var(--mono);font-size:.82rem;font-weight:500;}
+.mbuy{
+  width:100%;background:var(--accent);color:#000;font-family:var(--font);font-weight:700;
+  font-size:.92rem;padding:.72rem;border:none;border-radius:10px;cursor:pointer;transition:opacity .18s;
+}
+.mbuy:hover{opacity:.85;}
+.mbuy:disabled{background:var(--s3);color:var(--muted);cursor:not-allowed;border:1px solid var(--border);}
+.mnote{text-align:center;font-size:.7rem;color:var(--muted);margin-top:.7rem;}
+.mnote a{color:var(--accent);text-decoration:none;}
+
+/* SELL FORM */
+.fw{max-width:530px;margin:2.5rem auto 0;padding-bottom:3rem;}
+.fw h2{font-size:1.55rem;font-weight:700;letter-spacing:-.5px;margin-bottom:.38rem;}
+.fw .sub{color:var(--muted2);font-size:.86rem;margin-bottom:1.9rem;}
+.fg{margin-bottom:1.05rem;}
+.fl{display:block;font-size:.68rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin-bottom:.42rem;}
+.fi,.fsel,.fta{
+  width:100%;background:var(--s2);border:1px solid var(--border);color:var(--text);
+  font-family:var(--font);font-size:.86rem;padding:.62rem .9rem;border-radius:var(--rs);outline:none;
+  transition:border-color .16s;
+}
+.fi:focus,.fsel:focus,.fta:focus{border-color:var(--accent);}
+.fsel option{background:var(--s2);}
+.fta{resize:vertical;min-height:82px;}
+.f2{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;}
+.fsub{
+  width:100%;background:var(--accent);color:#000;font-family:var(--font);font-weight:700;
+  font-size:.92rem;padding:.75rem;border:none;border-radius:var(--rs);cursor:pointer;margin-top:.7rem;transition:opacity .18s;
+}
+.fsub:hover{opacity:.85;}
+.fhint{font-size:.7rem;color:var(--muted);margin-top:.4rem;}
+
+/* ORDERS */
+.ow{padding:2rem 0;}
+.ow h2{font-size:1.45rem;font-weight:700;letter-spacing:-.4px;margin-bottom:1.3rem;}
+.oc{
+  background:var(--s1);border:1px solid var(--border);border-radius:var(--r);
+  padding:.85rem 1.05rem;display:flex;align-items:center;gap:.9rem;margin-bottom:.65rem;
+}
+.oem{font-size:1.65rem;width:38px;text-align:center;flex-shrink:0;}
+.oi{flex:1;min-width:0;}
+.ot{font-weight:700;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.os2{font-size:.68rem;color:var(--muted);font-family:var(--mono);margin-top:.18rem;}
+.otx{font-size:.63rem;font-family:var(--mono);color:var(--muted);margin-top:.15rem;}
+.otx a{color:var(--accent);text-decoration:none;}
+.or{display:flex;flex-direction:column;align-items:flex-end;gap:.35rem;}
+.oprice{font-family:var(--mono);font-size:.85rem;font-weight:500;}
+.ost{font-size:.6rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:.2rem .55rem;border-radius:20px;}
+.ost.escrowed{background:var(--accent-dim);color:var(--accent);border:1px solid rgba(0,194,255,.25);}
+.ost.delivered{background:var(--green-dim);color:var(--green);border:1px solid rgba(0,232,135,.25);}
+.ost.pending{background:rgba(245,197,24,.1);color:var(--yellow);border:1px solid rgba(245,197,24,.25);}
+.empty{text-align:center;color:var(--muted);padding:3rem 0;font-size:.88rem;}
+
+/* TOAST */
+.toast{
+  position:fixed;bottom:1.75rem;right:1.75rem;z-index:400;
+  background:var(--s2);border:1px solid var(--border2);color:var(--text);
+  font-family:var(--mono);font-size:.76rem;padding:.6rem 1rem;border-radius:var(--rs);
+  transform:translateY(80px);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);max-width:340px;
+}
+.toast.show{transform:translateY(0);opacity:1;}
+.toast.ok{border-color:rgba(0,232,135,.4);color:var(--green);}
+.toast.err{border-color:rgba(255,64,96,.4);color:var(--red);}
+
+.spin{display:inline-block;width:13px;height:13px;border:2px solid rgba(0,0,0,.25);border-top-color:#000;border-radius:50%;animation:sp .6s linear infinite;vertical-align:middle;margin-right:4px;}
+@keyframes sp{to{transform:rotate(360deg);}}
+.hidden{display:none!important;}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo" onclick="switchTab('browse')">
+    <div class="logo-mark">A</div>
+    <div class="logo-name">Arc<span>Market</span></div>
+  </div>
+  <div class="nav-tabs">
+    <button class="ntab active" onclick="switchTab('browse',this)">Browse</button>
+    <button class="ntab" onclick="switchTab('sell',this)">Sell</button>
+    <button class="ntab" onclick="switchTab('orders',this)">Orders</button>
+  </div>
+  <div class="nav-right">
+    <div class="chain-pill"><div class="gpulse"></div>ARC Testnet · 5042002</div>
+    <div id="contract-pill" class="chain-pill" style="cursor:pointer" onclick="promptContractAddr()" title="Click to set contract address">
+      <span id="cpill-dot" style="width:6px;height:6px;border-radius:50%;background:var(--red)"></span>
+      <span id="cpill-label">No Contract</span>
+    </div>
+    <button class="wbtn" id="wbtn" onclick="connectWallet()">
+      <div id="wdot"></div>
+      <span id="wlabel">Connect Wallet</span>
+    </button>
+  </div>
+</nav>
+
+<main>
+
+<!-- BROWSE -->
+<div id="tab-browse">
+  <div class="hero">
+    <div>
+      <div class="eyebrow"><div class="gpulse"></div>Live on ARC Testnet &middot; USDC Native Gas</div>
+      <h1>The <em>decentralized</em><br>marketplace<br>for the AI era.</h1>
+      <p>Buy and sell AI services using USDC on ARC &mdash; Circle&rsquo;s L1 built for stablecoin finance. Dollar fees, sub-second finality, real on-chain payments.</p>
+      <div class="hctas">
+        <button class="btn-p" onclick="switchTab('sell')">Start Selling</button>
+        <button class="btn-g" onclick="document.getElementById('ls').scrollIntoView({behavior:'smooth'})">Browse Listings &darr;</button>
+        <button class="btn-g" onclick="window.open('https://faucet.circle.com','_blank')">Get Test USDC 🚰</button>
+      </div>
+    </div>
+    <div class="stats-col">
+      <div class="sc"><div class="sc-l">Listings</div><div class="sc-v" id="sv-list">6</div></div>
+      <div class="sc"><div class="sc-l">My Orders</div><div class="sc-v" id="sv-ord">0</div></div>
+      <div class="sc"><div class="sc-l">Chain ID</div><div class="sc-v" style="font-size:1.1rem">5042002</div></div>
+    </div>
+  </div>
+
+  <div id="ls">
+    <div class="frow">
+      <div class="chips">
+        <button class="chip active" onclick="doFilter('All',this)">All</button>
+        <button class="chip" onclick="doFilter('Design',this)">Design</button>
+        <button class="chip" onclick="doFilter('Development',this)">Development</button>
+        <button class="chip" onclick="doFilter('Writing',this)">Writing</button>
+        <button class="chip" onclick="doFilter('Data',this)">Data</button>
+        <button class="chip" onclick="doFilter('Digital Services',this)">Digital Services</button>
+      </div>
+      <div class="cnt" id="cntlabel">6 listings</div>
+    </div>
+    <div class="grid" id="grid"></div>
+  </div>
+</div>
+
+<!-- SELL -->
+<div id="tab-sell" class="hidden">
+  <div class="fw">
+    <h2>Create a Listing</h2>
+    <p class="sub">List your service and get paid in USDC on ARC. Funds transfer directly to your wallet on purchase.</p>
+    <div class="fg"><label class="fl">Service Title</label><input class="fi" id="f-title" placeholder="e.g. Smart Contract Audit"/></div>
+    <div class="fg"><label class="fl">Category</label>
+      <select class="fsel" id="f-cat">
+        <option>Design</option><option>Development</option><option>Writing</option><option>Data</option><option>Digital Services</option>
+      </select>
+    </div>
+    <div class="fg"><label class="fl">Description</label><textarea class="fta" id="f-desc" placeholder="Describe what you're offering..."></textarea></div>
+    <div class="f2">
+      <div class="fg"><label class="fl">Price (USDC)</label><input class="fi" type="number" id="f-price" placeholder="5.00" min="0.01" step="0.01"/></div>
+      <div class="fg"><label class="fl">Qty Available</label><input class="fi" type="number" id="f-qty" placeholder="10" min="1"/></div>
+    </div>
+    <div class="f2">
+      <div class="fg"><label class="fl">Icon (emoji)</label><input class="fi" id="f-emoji" placeholder="🎨" maxlength="4"/></div>
+      <div class="fg"><label class="fl">Payment Wallet (auto-filled)</label><input class="fi" id="f-wallet" placeholder="Connect wallet &rarr; auto fills"/></div>
+    </div>
+    <button class="fsub" onclick="createListing()">🚀 Publish Listing on ARC</button>
+    <p class="fhint">Listing stored on-chain via ArcMarket contract. Set contract address via <code>setMarketContract('0x...')</code> in console after deploying.</p>
+  </div>
+</div>
+
+<!-- ORDERS -->
+<div id="tab-orders" class="hidden">
+  <div class="ow"><h2>My Orders</h2><div id="olist"></div></div>
+</div>
+
+</main>
+
+<!-- MODAL -->
+<div class="ov" id="ov" onclick="closeMod(event)">
+  <div class="modal">
+    <button class="mx" onclick="closeModDirect()">&#x2715;</button>
+    <div class="mem" id="m-em"></div>
+    <div class="mcat" id="m-cat"></div>
+    <div class="mtitle" id="m-title"></div>
+    <div class="mdesc" id="m-desc"></div>
+    <div class="mrow">
+      <div class="mi"><div class="mil">Price</div><div class="miv" id="m-price"></div></div>
+      <div class="mi"><div class="mil">Available</div><div class="miv" id="m-qty"></div></div>
+      <div class="mi"><div class="mil">Seller</div><div class="miv" id="m-seller" style="font-size:.62rem;word-break:break-all;"></div></div>
+    </div>
+    <button class="mbuy" id="m-buy">&#x1F4B3; Buy with USDC</button>
+    <p class="mnote">USDC sent directly on ARC Testnet &middot; <a href="https://testnet.arcscan.app" target="_blank">View on ArcScan &nearr;</a></p>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ── ARC TESTNET CONFIG ────────────────────────────────── */
+const ARC_CHAIN_ID_HEX = '0x4CEF52';   // 5042002
+const ARC_RPC          = 'https://rpc.testnet.arc.network';
+const ARC_EXPLORER     = 'https://testnet.arcscan.app';
+
+// ─── USDC (ERC-20 precompile on ARC) ───────────────────
+// ARC's native USDC precompile — already checksummed
+const USDC_ADDR     = '0x3600000000000000000000000000000000000000';
+const USDC_DECIMALS = 6;
+const USDC_ABI = [
+  'function transfer(address to,uint256 amount) returns(bool)',
+  'function transferFrom(address from,address to,uint256 amount) returns(bool)',
+  'function approve(address spender,uint256 amount) returns(bool)',
+  'function allowance(address owner,address spender) view returns(uint256)',
+  'function balanceOf(address) view returns(uint256)',
+  'function decimals() view returns(uint8)',
+];
+
+// ─── ArcMarket contract ─────────────────────────────────
+// ⚠️  PASTE YOUR DEPLOYED CONTRACT ADDRESS HERE after deployment
+// Example: '0xYourContractAddressHere'
+let MARKET_ADDR = localStorage.getItem('arcmarket_contract') || '';
+
+const MARKET_ABI = [
+  // Listings
+  'function createListing(string title,string description,string category,string emoji,uint256 priceUsdc,uint256 qty) returns(uint256)',
+  'function updateListing(uint256 listingId,uint256 newPrice,uint256 newQty)',
+  'function delistListing(uint256 listingId)',
+  'function getActiveListings() view returns(uint256[] ids,address[] sellers,string[] titles,string[] categories,string[] emojis,uint256[] prices,uint256[] qtys)',
+  'function listings(uint256) view returns(uint256 id,address seller,string title,string description,string category,string emoji,uint256 priceUsdc,uint256 qty,bool active)',
+  // Orders
+  'function buyListing(uint256 listingId) returns(uint256)',
+  'function markDelivered(uint256 orderId)',
+  'function releasePayment(uint256 orderId)',
+  'function raiseDispute(uint256 orderId)',
+  'function autoRelease(uint256 orderId)',
+  'function getBuyerOrders(address buyer) view returns(uint256[])',
+  'function orders(uint256) view returns(uint256 id,uint256 listingId,address buyer,address seller,uint256 amount,uint256 fee,uint256 createdAt,uint8 status)',
+  // Events
+  'event ListingCreated(uint256 indexed id,address indexed seller,string title,uint256 priceUsdc)',
+  'event OrderPlaced(uint256 indexed orderId,uint256 indexed listingId,address indexed buyer,uint256 amount)',
+  'event OrderDelivered(uint256 indexed orderId)',
+  'event PaymentReleased(uint256 indexed orderId,address seller,uint256 amount)',
+];
+
+/* ── STATE ────────────────────────────────────────────── */
+let walletAddress=null, provider=null, signer=null;
+let marketContract=null, usdcContract=null;
+let curFilter='All';
+let myOrders=[];
+
+// Seed listings shown when contract not yet configured
+let LISTINGS=[
+  {id:1,cat:'Design',        emoji:'🎨',title:'AI Logo Design',           desc:'Professional AI-designed logo delivered as SVG & PNG within 24 hours. Unlimited revisions included.',                    price:1.00,qty:8, seller:'Demo',full:'',status:'active',demo:true},
+  {id:2,cat:'Development',   emoji:'🔐',title:'Smart Contract Audit',      desc:'Comprehensive security review of your ARC intelligent contract with a detailed report and fix recommendations.',         price:5.00,qty:3, seller:'Demo',full:'',status:'active',demo:true},
+  {id:3,cat:'Data',          emoji:'📊',title:'On-Chain Analytics Report', desc:'Weekly on-chain report covering price, volume, whale activity and holder trends for your ARC token or project.',        price:2.50,qty:50,seller:'Demo',full:'',status:'new',demo:true},
+  {id:4,cat:'Development',   emoji:'⚙️',title:'dApp Landing Page',         desc:'Full responsive landing page for your ARC dApp — includes wallet-connect UI, animations, and mobile layout.',            price:3.00,qty:5, seller:'Demo',full:'',status:'active',demo:true},
+  {id:5,cat:'Writing',       emoji:'✍️',title:'Whitepaper Writing',         desc:'Technical whitepaper for your Web3 project — research, writing, and professional graphic design all in one package.',   price:2.50,qty:2, seller:'Demo',full:'',status:'active',demo:true},
+  {id:6,cat:'Digital Services',emoji:'💡',title:'ARC Workshop (1hr)',      desc:'Live 1-hour workshop on building intelligent contracts on ARC Network. Zoom call plus full recording included.',          price:1.50,qty:0, seller:'Demo',full:'',status:'soldout',demo:true},
+];
+
+const TC={Design:'rgba(0,194,255,.08)',Development:'rgba(0,232,135,.08)',Writing:'rgba(245,197,24,.08)',Data:'rgba(123,97,255,.08)','Digital Services':'rgba(255,100,150,.08)'};
+
+/* ── RENDER ───────────────────────────────────────────── */
+function renderGrid(items){
+  document.getElementById('cntlabel').textContent=items.length+' listing'+(items.length!==1?'s':'');
+  document.getElementById('sv-list').textContent=LISTINGS.length;
+  document.getElementById('grid').innerHTML=items.map(l=>{
+    const so=l.qty===0||l.status==='soldout';
+    const bc=so?'b-sold':l.status==='new'?'b-new':'b-active';
+    const bt=so?'SOLD OUT':l.status==='new'?'NEW':'ACTIVE';
+    return`<div class="card" onclick="openMod(${l.id})">
+      <div class="cthumb" style="--tc:${TC[l.cat]||'rgba(0,194,255,.07)'}">
+        <div class="cthumb-bg"></div>
+        <span style="position:relative;z-index:1">${l.emoji}</span>
+        <span class="badge ${bc}">${bt}</span>
+      </div>
+      <div class="cbody">
+        <div class="ccat">${l.cat}</div>
+        <div class="ctitle">${l.title}</div>
+        <div class="cdesc">${l.desc}</div>
+        <div class="cfoot">
+          <div class="pw"><span class="utag">USDC</span><span class="pnum">${l.price.toFixed(2)}</span></div>
+          <span class="cqty">${l.qty>0?l.qty+' left':'Sold out'}</span>
+        </div>
+        <div class="cseller">by ${l.seller}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function doFilter(cat,btn){
+  curFilter=cat;
+  document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+  btn.classList.add('active');
+  renderGrid(cat==='All'?LISTINGS:LISTINGS.filter(l=>l.cat===cat));
+}
+
+/* ── MODAL ────────────────────────────────────────────── */
+function openMod(id){
+  const l=LISTINGS.find(x=>x.id===id);
+  const so=l.qty===0||l.status==='soldout';
+  document.getElementById('m-em').textContent=l.emoji;
+  document.getElementById('m-cat').textContent=l.cat;
+  document.getElementById('m-title').textContent=l.title;
+  document.getElementById('m-desc').textContent=l.desc;
+  document.getElementById('m-price').textContent=l.price.toFixed(2)+' USDC';
+  document.getElementById('m-qty').textContent=so?'Sold out':l.qty;
+  document.getElementById('m-seller').textContent=l.seller;
+  const btn=document.getElementById('m-buy');
+  btn.disabled=so;btn.textContent=so?'Sold Out':'💳 Buy with USDC';
+  btn.onclick=()=>buyItem(l);
+  document.getElementById('ov').classList.add('open');
+}
+function closeMod(e){if(e.target.id==='ov')closeModDirect();}
+function closeModDirect(){document.getElementById('ov').classList.remove('open');}
+
+/* ── CONTRACT SETUP ───────────────────────────────────── */
+function initContracts(signerOrProvider){
+  usdcContract = new ethers.Contract(USDC_ADDR, USDC_ABI, signerOrProvider);
+  if(MARKET_ADDR && ethers.isAddress(MARKET_ADDR)){
+    marketContract = new ethers.Contract(MARKET_ADDR, MARKET_ABI, signerOrProvider);
+  }
+}
+
+async function loadChainListings(){
+  if(!marketContract) return;
+  try{
+    const res = await marketContract.getActiveListings();
+    const ids=res[0],sellers=res[1],titles=res[2],cats=res[3],emojis=res[4],prices=res[5],qtys=res[6];
+    if(!ids.length){toast('ℹ️ No on-chain listings yet — create the first one!','ok');return;}
+    LISTINGS = Array.from({length:ids.length},(_,i)=>({
+      id:Number(ids[i]),cat:cats[i],emoji:emojis[i],title:titles[i],
+      desc:'On-chain listing — click to view full details.',
+      price:Number(prices[i])/1e6,qty:Number(qtys[i]),
+      seller:sellers[i].slice(0,6)+'...'+sellers[i].slice(-4),
+      full:sellers[i],
+      status:Number(qtys[i])===0?'soldout':'active',
+      onChain:true,onChainId:Number(ids[i]),
+    }));
+    renderGrid(curFilter==='All'?LISTINGS:LISTINGS.filter(x=>x.cat===curFilter));
+    toast('📡 Listings loaded from chain','ok');
+  }catch(e){console.warn('loadChainListings',e);}
+}
+
+/* ── WALLET ───────────────────────────────────────────── */
+async function connectWallet(){
+  if(!window.ethereum){toast('🦊 MetaMask not found — install it first','err');return;}
+  try{
+    try{
+      await window.ethereum.request({method:'wallet_switchEthereumChain',params:[{chainId:ARC_CHAIN_ID_HEX}]});
+    }catch(err){
+      if(err.code===4902){
+        await window.ethereum.request({method:'wallet_addEthereumChain',params:[{
+          chainId:ARC_CHAIN_ID_HEX,chainName:'ARC Testnet',
+          rpcUrls:[ARC_RPC],
+          nativeCurrency:{name:'USDC',symbol:'USDC',decimals:18},
+          blockExplorerUrls:[ARC_EXPLORER],
+        }]});
+      }else throw err;
+    }
+    const accounts=await window.ethereum.request({method:'eth_requestAccounts'});
+    walletAddress=accounts[0];
+    provider=new ethers.BrowserProvider(window.ethereum);
+    signer=await provider.getSigner();
+    initContracts(signer);
+    setWalletUI(walletAddress);
+    document.getElementById('f-wallet').value=walletAddress;
+    if(marketContract) await loadChainListings();
+    toast('✅ Connected on ARC Testnet','ok');
+  }catch(e){
+    toast('❌ '+(e.message||'Connection failed'),'err');
+  }
+}
+
+function setWalletUI(addr){
+  const s=addr.slice(0,6)+'...'+addr.slice(-4);
+  document.getElementById('wlabel').textContent=s;
+  document.getElementById('wdot').classList.add('on');
+  document.getElementById('wbtn').classList.add('on');
+}
+
+/* ── BUY ──────────────────────────────────────────────── */
+async function buyItem(l){
+  if(!walletAddress){toast('⚠️ Connect your wallet first','err');return;}
+  const btn=document.getElementById('m-buy');
+  btn.disabled=true;
+
+  // ── Demo mode (no contract deployed yet) ──────────────
+  if(!marketContract || !MARKET_ADDR){
+    btn.innerHTML='<span class="spin"></span>Demo mode…';
+    await new Promise(r=>setTimeout(r,1200));
+    closeModDirect();
+    myOrders.unshift({title:l.title,emoji:l.emoji,seller:l.seller,price:l.price.toFixed(2)+' USDC',status:'escrowed',hash:null});
+    document.getElementById('sv-ord').textContent=myOrders.length;
+    renderOrders();
+    toast('ℹ️ Demo purchase — deploy contract to go live','ok');
+    btn.disabled=false;btn.textContent='💳 Buy with USDC';
+    return;
+  }
+
+  // ── On-chain escrow buy ────────────────────────────────
+  try{
+    const amount = ethers.parseUnits(l.price.toFixed(6), USDC_DECIMALS);
+
+    // Step 1: approve USDC spend
+    btn.innerHTML='<span class="spin"></span>Step 1/2: Approving USDC…';
+    const approveTx = await usdcContract.approve(MARKET_ADDR, amount);
+    await approveTx.wait();
+
+    // Step 2: call buyListing on contract
+    btn.innerHTML='<span class="spin"></span>Step 2/2: Placing order…';
+    const buyTx = await marketContract.buyListing(l.onChainId || l.id);
+    closeModDirect();
+    toast('⏳ Order submitted, confirming…','ok');
+    const receipt = await buyTx.wait();
+    const hash = receipt.hash;
+
+    // Update local state
+    const li=LISTINGS.find(x=>x.id===l.id);
+    if(li&&li.qty>0)li.qty--;
+    myOrders.unshift({title:l.title,emoji:l.emoji,seller:l.seller,price:l.price.toFixed(2)+' USDC',status:'escrowed',hash});
+    document.getElementById('sv-ord').textContent=myOrders.length;
+    renderGrid(curFilter==='All'?LISTINGS:LISTINGS.filter(x=>x.cat===curFilter));
+    renderOrders();
+    toast('✅ '+l.price.toFixed(2)+' USDC in escrow! Tx: '+hash.slice(0,10)+'…','ok');
+  }catch(e){
+    const msg=e.reason||e.shortMessage||e.message||'Transaction failed';
+    toast('❌ '+msg,'err');
+    btn.disabled=false;btn.textContent='💳 Buy with USDC';
+  }
+}
+
+/* ── ORDERS ───────────────────────────────────────────── */
+function renderOrders(){
+  const el=document.getElementById('olist');
+  if(!myOrders.length){el.innerHTML='<div class="empty">No orders yet. Browse listings to buy a service.</div>';return;}
+  el.innerHTML=myOrders.map(o=>`
+    <div class="oc">
+      <div class="oem">${o.emoji}</div>
+      <div class="oi">
+        <div class="ot">${o.title}</div>
+        <div class="os2">${o.seller}</div>
+        ${o.hash?`<div class="otx"><a href="${ARC_EXPLORER}/tx/${o.hash}" target="_blank">View on ArcScan ↗</a></div>`:''}
+      </div>
+      <div class="or">
+        <div class="oprice">${o.price}</div>
+        <span class="ost ${o.status}">${o.status==='escrowed'?'In Escrow':o.status==='delivered'?'Delivered':'Pending'}</span>
+      </div>
+    </div>`).join('');
+}
+
+/* ── SELL ─────────────────────────────────────────────── */
+async function createListing(){
+  const title=document.getElementById('f-title').value.trim();
+  const cat=document.getElementById('f-cat').value;
+  const desc=document.getElementById('f-desc').value.trim();
+  const price=parseFloat(document.getElementById('f-price').value)||0;
+  const qty=parseInt(document.getElementById('f-qty').value)||0;
+  const emoji=document.getElementById('f-emoji').value.trim()||'📦';
+  if(!title||!desc||price<=0||qty<=0){toast('⚠️ Please fill in all fields','err');return;}
+  if(!walletAddress){toast('⚠️ Connect your wallet to publish','err');return;}
+
+  // ── On-chain listing ──────────────────────────────────
+  if(marketContract && MARKET_ADDR){
+    const btn=document.querySelector('.fsub');
+    btn.disabled=true;btn.innerHTML='<span class="spin"></span>Publishing on-chain…';
+    try{
+      const priceUnits=ethers.parseUnits(price.toFixed(6),USDC_DECIMALS);
+      const tx=await marketContract.createListing(title,desc,cat,emoji,priceUnits,qty);
+      toast('⏳ Submitting listing to ARC…','ok');
+      await tx.wait();
+      toast('🚀 Listing published on-chain!','ok');
+      ['f-title','f-desc','f-price','f-qty','f-emoji'].forEach(id=>{document.getElementById(id).value='';});
+      await loadChainListings();
+      switchTab('browse');
+    }catch(e){
+      toast('❌ '+(e.reason||e.message),'err');
+    }finally{btn.disabled=false;btn.innerHTML='🚀 Publish Listing on ARC';}
+    return;
+  }
+
+  // ── Demo mode (no contract) ───────────────────────────
+  LISTINGS.unshift({
+    id:Date.now(),cat,emoji,title,desc,price,qty,
+    seller:walletAddress.slice(0,6)+'...'+walletAddress.slice(-4),
+    full:walletAddress,status:'active',demo:true,
+  });
+  ['f-title','f-desc','f-price','f-qty','f-emoji'].forEach(id=>{document.getElementById(id).value='';});
+  toast('🚀 Listing published (demo — deploy contract to persist)!','ok');
+  switchTab('browse');
+  renderGrid(LISTINGS);
+}
+
+/* ── NAV ──────────────────────────────────────────────── */
+function switchTab(name,btn){
+  ['browse','sell','orders'].forEach(t=>document.getElementById('tab-'+t).classList.add('hidden'));
+  document.getElementById('tab-'+name).classList.remove('hidden');
+  document.querySelectorAll('.ntab').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  else document.querySelectorAll('.ntab')[['browse','sell','orders'].indexOf(name)].classList.add('active');
+  if(name==='orders')renderOrders();
+}
+
+/* ── TOAST ────────────────────────────────────────────── */
+let tt;
+function toast(msg,type='ok'){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className='toast show '+(type==='err'?'err':'ok');
+  clearTimeout(tt);tt=setTimeout(()=>t.className='toast',3800);
+}
+
+/* ── INIT ─────────────────────────────────────────────── */
+renderGrid(LISTINGS);
+renderOrders();
+
+if(window.ethereum){
+  window.ethereum.request({method:'eth_accounts'}).then(async accounts=>{
+    if(accounts.length){
+      walletAddress=accounts[0];
+      provider=new ethers.BrowserProvider(window.ethereum);
+      signer=await provider.getSigner();
+      initContracts(signer);
+      setWalletUI(walletAddress);
+      document.getElementById('f-wallet').value=walletAddress;
+      if(marketContract) loadChainListings();
+    }
+  });
+  window.ethereum.on('accountsChanged',a=>{if(!a.length)location.reload();else{walletAddress=a[0];setWalletUI(a[0]);}});
+  window.ethereum.on('chainChanged',()=>location.reload());
+}
+
+// ── Contract address setter (paste after deployment) ─────
+// To set contract after deploying:  setMarketContract('0xYourAddress')
+window.setMarketContract = function(addr){
+  if(!ethers.isAddress(addr)){alert('Invalid address');return;}
+  MARKET_ADDR = addr;
+  localStorage.setItem('arcmarket_contract', addr);
+  if(signer) initContracts(signer);
+  updateContractPill();
+  toast('✅ Contract address saved! Loading chain data…','ok');
+  if(marketContract) loadChainListings();
+};
+
+function updateContractPill(){
+  const dot=document.getElementById('cpill-dot');
+  const lbl=document.getElementById('cpill-label');
+  if(MARKET_ADDR && ethers.isAddress(MARKET_ADDR)){
+    dot.style.background='var(--green)';
+    lbl.textContent=MARKET_ADDR.slice(0,6)+'…'+MARKET_ADDR.slice(-4);
+  } else {
+    dot.style.background='var(--red)';
+    lbl.textContent='No Contract';
+  }
+}
+
+window.promptContractAddr = function(){
+  const addr=prompt('Paste your deployed ArcMarket contract address:',MARKET_ADDR||'');
+  if(addr) window.setMarketContract(addr.trim());
+};
+
+updateContractPill();
+</script>
+</body>
+</html>
