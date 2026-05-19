@@ -428,7 +428,7 @@ const USDC_ABI = [
 // ─── ArcMarket contract ─────────────────────────────────
 // ⚠️  PASTE YOUR DEPLOYED CONTRACT ADDRESS HERE after deployment
 // Example: '0xYourContractAddressHere'
-let MARKET_ADDR = '0xB66901C034cB741999e02A86F90125D4F4Ed54f5';
+let MARKET_ADDR = localStorage.getItem('arcmarket_contract') || '';
 
 const MARKET_ABI = [
   // Listings
@@ -444,6 +444,7 @@ const MARKET_ABI = [
   'function raiseDispute(uint256 orderId)',
   'function autoRelease(uint256 orderId)',
   'function getBuyerOrders(address buyer) view returns(uint256[])',
+  'function getSellerListings(address seller) view returns(uint256[])',
   'function orders(uint256) view returns(uint256 id,uint256 listingId,address buyer,address seller,uint256 amount,uint256 fee,uint256 createdAt,uint8 status)',
   // Events
   'event ListingCreated(uint256 indexed id,address indexed seller,string title,uint256 priceUsdc)',
@@ -743,32 +744,59 @@ async function loadChainOrders(){
 async function loadSellerOrders(){
   if(!marketContract || !walletAddress) return;
   try{
-    const sellerIds = await marketContract.getSellerListings(walletAddress);
     sellerDashboard = [];
-    for(const lid of sellerIds){
-      // find orders for this listing by scanning all orders via events
-      // lightweight: just show pending orders via getBuyerOrders on all known buyers
-      // We use OrderPlaced events filtered by listing
-      try{
-        const filter = marketContract.filters.OrderPlaced(null, lid);
-        const events = await marketContract.queryFilter(filter, -10000);
-        for(const ev of events){
-          const orderId = Number(ev.args.orderId);
-          const o = await marketContract.orders(orderId);
-          if(Number(o.status) === 0 || Number(o.status) === 1){ // Pending or Delivered
-            const l = await marketContract.listings(lid);
-            sellerDashboard.push({
-              orderId,
-              listingTitle: l.title,
-              emoji: l.emoji,
-              buyer: o.buyer.slice(0,6)+'...'+o.buyer.slice(-4),
-              amount: (Number(o.amount)/1e6).toFixed(2),
-              statusIdx: Number(o.status),
-            });
-          }
-        }
-      }catch(e){}
+
+    // Strategy: scan all orders by ID (brute force up to current nonce)
+    // This avoids queryFilter which may not work on ARC testnet
+    // We get the total order count from the contract nonce via a known order
+    // First get seller's listing IDs so we know which listing IDs belong to us
+    const sellerListingIds = await marketContract.getSellerListings(walletAddress);
+    const sellerListingSet = new Set(sellerListingIds.map(id => Number(id)));
+
+    if(sellerListingSet.size === 0){
+      renderSellerDashboard();
+      return;
     }
+
+    // Scan orders 1..N until we hit one that doesn't exist
+    // Also scan from known buyer orders in reverse to find linked ones
+    // Primary: try up to 200 order IDs (sufficient for testnet)
+    const promises = [];
+    for(let i = 1; i <= 200; i++){
+      promises.push(
+        marketContract.orders(i).then(o => ({raw: o, id: i})).catch(() => null)
+      );
+    }
+    const results = await Promise.all(promises);
+
+    for(const r of results){
+      if(!r || !r.raw || Number(r.raw.id) === 0) continue;
+      const o = r.raw;
+      // Check if this order's seller is us
+      if(o.seller.toLowerCase() !== walletAddress.toLowerCase()) continue;
+      const statusIdx = Number(o.status);
+      const listingId = Number(o.listingId);
+
+      // Get listing info
+      let listingTitle = 'Order #'+r.id;
+      let emoji = '📦';
+      try{
+        const l = await marketContract.listings(listingId);
+        listingTitle = l.title || listingTitle;
+        emoji = l.emoji || emoji;
+      }catch(e){}
+
+      sellerDashboard.push({
+        orderId:      r.id,
+        listingTitle,
+        emoji,
+        buyer:        o.buyer.slice(0,6)+'...'+o.buyer.slice(-4),
+        buyerFull:    o.buyer,
+        amount:       (Number(o.amount)/1e6).toFixed(2),
+        statusIdx,
+      });
+    }
+
     renderSellerDashboard();
   }catch(e){ console.warn('loadSellerOrders',e); }
 }
@@ -779,7 +807,7 @@ function renderSellerDashboard(){
   const el = document.getElementById('seller-dash');
   if(!el) return;
   if(!sellerDashboard.length){
-    el.innerHTML='<div class="empty" style="font-size:12px;padding:12px;">No pending orders on your listings yet.</div>';
+    el.innerHTML='<div class="empty" style="font-size:12px;padding:12px;">No orders on your listings yet. Share your listings to get buyers!</div>';
     return;
   }
   el.innerHTML = sellerDashboard.map(o=>`
@@ -787,11 +815,21 @@ function renderSellerDashboard(){
       <div class="oem">${o.emoji}</div>
       <div class="oi">
         <div class="ot">${o.listingTitle}</div>
-        <div class="os2">Buyer: ${o.buyer} · ${o.amount} USDC</div>
+        <div class="os2">Buyer: ${o.buyer} · ${o.amount} USDC in escrow</div>
+        <div class="os2" style="color:var(--muted);">Order #${o.orderId}</div>
       </div>
-      <div class="or">
+      <div class="or" style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
         <span class="ost ${ORDER_CSS[o.statusIdx]}">${ORDER_LABEL[o.statusIdx]}</span>
-        ${o.statusIdx===0?`<button class="buy-btn" style="margin-top:6px;font-size:11px;padding:4px 10px;" onclick="markDelivered(${o.orderId})">Mark Delivered</button>`:''}
+        ${o.statusIdx===0?`
+          <button class="buy-btn" style="font-size:11px;padding:5px 12px;background:rgba(99,102,241,.2);border-color:rgba(99,102,241,.4);color:#a5b4fc;"
+            onclick="markDelivered(${o.orderId})">✅ Mark as Delivered</button>`:''}
+        ${o.statusIdx===1?`<div style="font-size:11px;color:#4ade80;">✔ Waiting for buyer to release payment</div>`:''}
+        ${o.statusIdx===2?`<div style="font-size:11px;color:#4ade80;">💰 Payment Released</div>`:''}
+        ${o.statusIdx===3?`<div style="font-size:11px;color:#f87171;">⚠️ Disputed</div>`:''}
+        <button class="buy-btn" style="font-size:11px;padding:5px 12px;"
+          onclick="openChat(${o.orderId},'${(o.listingTitle||'').replace(/'/g,"\'")}','${o.emoji}','${o.buyer}')">
+          💬 Message Buyer
+        </button>
       </div>
     </div>`).join('');
 }
@@ -843,16 +881,32 @@ function renderOrders(){
       <div class="oi">
         <div class="ot">${o.title}</div>
         <div class="os2">Seller: ${o.sellerShort||o.seller||''}</div>
-        ${o.hash?`<div class="otx"><a href="${ARC_EXPLORER}/tx/${o.hash}" target="_blank">View on ArcScan ↗</a></div>`:''}
-        ${o.onChain&&o.id?`<div class="otx"><a href="${ARC_EXPLORER}" target="_blank" style="color:#888;">Order #${o.id}</a></div>`:''}
+        ${o.onChain&&o.id?`<div class="otx" style="color:#888;font-size:11px;">Order #${o.id}</div>`:''}
       </div>
-      <div class="or">
+      <div class="or" style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
         <div class="oprice">${o.price||o.amount+' USDC'}</div>
         <span class="ost ${ORDER_CSS[o.statusIdx]||o.status}">${ORDER_LABEL[o.statusIdx]||'Pending'}</span>
-        <div style="display:flex;flex-direction:column;gap:4px;margin-top:6px;">
-          ${o.statusIdx===1?`<button class="buy-btn" style="font-size:11px;padding:4px 10px;background:rgba(0,200,100,.15);border-color:rgba(0,200,100,.3);color:#4ade80;" onclick="releasePayment(${o.id})">✅ Release Payment</button>`:''}
-          ${o.statusIdx===0||o.statusIdx===1?`<button class="buy-btn" style="font-size:11px;padding:4px 10px;background:rgba(255,100,100,.1);border-color:rgba(255,100,100,.3);color:#f87171;" onclick="raiseDispute(${o.id})">⚠️ Dispute</button>`:''}
-        </div>
+
+        ${o.statusIdx===0?`<div style="font-size:11px;color:var(--muted);">⏳ Waiting for seller to deliver</div>`:''}
+
+        ${o.statusIdx===1?`
+          <button class="buy-btn" onclick="releasePayment(${o.id})"
+            style="font-size:12px;padding:7px 14px;background:rgba(0,200,100,.2);border-color:rgba(0,200,100,.4);color:#4ade80;font-weight:600;">
+            ✅ Confirm & Release Payment
+          </button>`:''}
+
+        ${o.statusIdx===2?`<div style="font-size:11px;color:#4ade80;">💰 Payment released to seller</div>`:''}
+
+        ${(o.statusIdx===0||o.statusIdx===1)?`
+          <button class="buy-btn" onclick="raiseDispute(${o.id})"
+            style="font-size:11px;padding:5px 12px;background:rgba(255,100,100,.1);border-color:rgba(255,100,100,.3);color:#f87171;">
+            ⚠️ Raise Dispute
+          </button>`:''}
+
+        <button class="buy-btn" onclick="openChat(${o.id},'${(o.title||'').replace(/'/g,"\'")}','${o.emoji||'📦'}','${o.sellerShort||'Seller'}')"
+          style="font-size:11px;padding:5px 12px;">
+          💬 Message Seller
+        </button>
       </div>
     </div>`).join('');
 }
